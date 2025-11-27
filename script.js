@@ -400,7 +400,7 @@ async function loadProfessionPage() {
           </section>
 
           <section class="prof-section">
-            <h2>Примеры ролей и трудовых функций</h2>
+            <h2>Примеры ролей</h2>
             <p>${roles || "—"}</p>
           </section>
 
