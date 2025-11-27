@@ -411,7 +411,7 @@ async function loadProfessionPage() {
 
           ${recs ? `
           <aside class="prof-recommend">
-            <div class="rec-title">Рекомендации</div>
+            <div class="rec-title">Комментарий</div>
             <div class="rec-body">${recs}</div>
           </aside>` : ``}
 
