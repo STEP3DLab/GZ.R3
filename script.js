@@ -1,0 +1,434 @@
+/* ==========================================================
+   Google Sheets (GViz JSON)
+========================================================== */
+
+async function fetchGviz(sheetName) {
+  const SHEET_ID = window.GSHEET_ID;
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+  const res = await fetch(url, { cache: "no-store" });
+
+  if (!res.ok) {
+    const err = new Error(`GViz request failed with ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+
+  const text = await res.text();
+
+  const match = text.match(/google\.visualization\.Query\.setResponse\((.*)\);?/s);
+  if (!match || !match[1]) {
+    console.error("Unexpected GViz payload", text.slice(0, 200));
+    throw new Error("GViz response format changed");
+  }
+
+  const json = JSON.parse(match[1]);
+  return json.table;
+}
+
+function gvizToObjects(table) {
+  const headers = table.cols.map(c => (c?.label || "").trim());
+  const rows = table.rows
+    .map(r => (r.c || []).map(cell => (cell && cell.v != null ? String(cell.v) : "")))
+    .filter(row => row.some(v => v !== ""));
+  const maybeHeader = rows[0] || [];
+  const sameHeader = maybeHeader.every((v, i) =>
+    headers[i] ? v.trim().toLowerCase() === headers[i].trim().toLowerCase() : false
+  );
+  const data = sameHeader ? rows.slice(1) : rows;
+
+  return data.map(row => {
+    const obj = {};
+    headers.forEach((h, i) => (obj[h || `col_${i}`] = row[i] || ""));
+    return obj;
+  });
+}
+
+let professionsCache = null;
+let groupsCache = null;
+
+async function getProfessions() {
+  if (professionsCache) return professionsCache;
+  const table = await fetchGviz(window.SHEET_PROFESSIONS || "Профессии");
+  professionsCache = gvizToObjects(table);
+  return professionsCache;
+}
+async function getGroups() {
+  if (groupsCache) return groupsCache;
+  const table = await fetchGviz(window.SHEET_GROUPS || "Группы");
+  groupsCache = gvizToObjects(table).map(g => ({
+    id: String(g["ID группы"] || g["ID"] || "").trim(),
+    name: (g["Название группы"] || g["Название"] || "").trim(),
+    desc: (g["Описание"] || "").trim()
+  }));
+  return groupsCache;
+}
+
+function safe(t) {
+  return String(t || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+/* ==========================================================
+   Главная: рендер групп
+========================================================== */
+async function renderGroups() {
+  const wrap = document.querySelector(".groups");
+  if (!wrap) return;
+
+  wrap.innerHTML = `<div class="groups-loader">Загружаем группы…</div>`;
+
+  try {
+    const table = await fetchGviz(window.SHEET_GROUPS || "Группы");
+    const groups = gvizToObjects(table);
+    wrap.innerHTML = "";
+
+    groups.forEach(g => {
+      const id = g["ID группы"] || g["ID"] || "";
+      const title = g["Название группы"] || g["Название"] || "Без названия";
+      const desc = g["Описание"] || "";
+
+      const card = document.createElement("div");
+      card.className = "group-card";
+      card.tabIndex = 0;
+      card.setAttribute("role", "button");
+      card.setAttribute("aria-expanded", "false");
+      card.dataset.groupId = id;
+
+      card.innerHTML = `
+        <h3>${safe(title)}</h3>
+        ${desc ? `<p>${safe(desc)}</p>` : ""}
+      `;
+
+      const smoothScrollToCard = () => {
+        const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const isMobile = window.matchMedia("(max-width: 768px)").matches;
+        const block = isMobile ? "start" : "center";
+
+        card.scrollIntoView({
+          behavior: prefersReducedMotion ? "instant" : "smooth",
+          block,
+          inline: "nearest"
+        });
+
+        if (prefersReducedMotion) return Promise.resolve();
+
+        return new Promise(resolve => {
+          let lastY = window.scrollY;
+          let stableFrames = 0;
+          let totalFrames = 0;
+          const maxFrames = 45; // ~750ms at 60fps
+          let done = false;
+          const check = () => {
+            if (done) return;
+            totalFrames += 1;
+            const currentY = window.scrollY;
+            if (Math.abs(currentY - lastY) < 1) {
+              stableFrames += 1;
+            } else {
+              stableFrames = 0;
+              lastY = currentY;
+            }
+
+            if (stableFrames > 5 || totalFrames >= maxFrames) {
+              done = true;
+              resolve();
+              return;
+            }
+            requestAnimationFrame(check);
+          };
+
+          requestAnimationFrame(check);
+        });
+      };
+
+      const toggle = async () => {
+        const expanded = card.classList.toggle("expanded");
+        card.setAttribute("aria-expanded", expanded ? "true" : "false");
+
+        const exists = card.querySelector(".prof-list");
+        if (!expanded && exists) { exists.remove(); return; }
+
+        if (expanded && !exists) {
+          await smoothScrollToCard();
+          const list = document.createElement("div");
+          list.className = "prof-list";
+          list.innerHTML = `<div class="groups-loader">Загружаем профессии…</div>`;
+          card.appendChild(list);
+
+          const all = await getProfessions();
+          const items = all.filter(p => String(p["Группа (ID)"]) === String(id));
+
+          const clip = (t, n = 140) => (t || "").length > n ? (t || "").slice(0, n).trim() + "…" : (t || "");
+
+          list.innerHTML = "";
+          items.forEach((p, i) => {
+            const pid = p["ID"] || "";
+            const name = p["Название профессии"] || "Профессия";
+            const short = clip(p["Описание"] || p["Краткое описание"] || "");
+            const link = `profession.html?id=${encodeURIComponent(pid)}`;
+
+            const item = document.createElement("div");
+            item.className = "prof-card";
+            item.style.animation = `fadeIn 0.4s ease ${i * 0.05}s both`;
+            item.innerHTML = `
+              <h4>${safe(name)}</h4>
+              ${short ? `<p>${safe(short)}</p>` : `<p>Описание будет добавлено.</p>`}
+              <a class="btn" href="${link}">Подробнее</a>
+            `;
+            list.appendChild(item);
+          });
+
+          if (!items.length) {
+            list.innerHTML = `<div class="groups-loader" style="opacity:.8">
+              Пока нет данных по профессиям этой группы.
+            </div>`;
+          }
+        } else if (expanded) {
+          await smoothScrollToCard();
+        }
+      };
+
+      card.addEventListener("click", toggle);
+      card.addEventListener("keydown", e => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+      });
+
+      wrap.appendChild(card);
+    });
+  } catch (e) {
+    console.error("Ошибка загрузки групп:", e);
+    wrap.innerHTML = `<div class="groups-loader" style="color:#b00020">
+      Не удалось загрузить группы. Проверьте доступ к таблице (режим: «читатель»).
+    </div>`;
+  }
+}
+
+/* Плавная прокрутка по якорям */
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+  anchor.addEventListener("click", function (e) {
+    e.preventDefault();
+    const t = document.querySelector(this.getAttribute("href"));
+    if (t) t.scrollIntoView({ behavior: "smooth" });
+  });
+});
+
+/* Кнопка «наверх» */
+function initToTop() {
+  const btn = document.getElementById("toTop");
+  if (!btn) return;
+
+  const toggle = () => {
+    if (window.scrollY > 300) btn.classList.add("to-top--visible");
+    else btn.classList.remove("to-top--visible");
+  };
+  toggle();
+
+  window.addEventListener("scroll", toggle, { passive: true });
+  btn.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+}
+
+function prepareProfessionHeader() {
+  if (!document.getElementById("profession")) return;
+
+  const header = document.querySelector("header");
+  if (!header) return;
+
+  const nav = header.querySelector("nav");
+  if (!nav) return;
+
+  const logoImg = header.querySelector("img");
+  const logoLink = logoImg ? logoImg.closest("a") : header.querySelector("a");
+  if (logoLink) {
+    logoLink.href = "https://rgsu.net";
+    logoLink.setAttribute("target", "_blank");
+    logoLink.setAttribute("rel", "noopener");
+    logoLink.setAttribute("aria-label", "Сайт РГСУ");
+  }
+
+  nav.id = "mainNav";
+
+  const links = [
+    { href: "index.html", text: "Главная" },
+    { href: "test.html", text: "Тест" },
+    { href: "index.html#groups", text: "Профессии" },
+    { href: "index.html#docs", text: "Документация" },
+    { href: "index.html#contacts", text: "Контакты" }
+  ];
+
+  nav.innerHTML = "";
+  links.forEach(({ href, text }) => {
+    const link = document.createElement("a");
+    link.href = href;
+    link.textContent = text;
+    nav.appendChild(link);
+  });
+
+  let toggle = header.querySelector(".menu-toggle");
+  if (!toggle) {
+    toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "menu-toggle";
+    toggle.setAttribute("aria-label", "Открыть меню");
+    toggle.setAttribute("aria-controls", "mainNav");
+    toggle.setAttribute("aria-expanded", "false");
+
+    for (let i = 0; i < 3; i += 1) {
+      const bar = document.createElement("span");
+      bar.className = "menu-toggle__bar";
+      toggle.appendChild(bar);
+    }
+
+    header.insertBefore(toggle, nav);
+  } else {
+    toggle.setAttribute("aria-controls", "mainNav");
+  }
+}
+
+function initMobileMenu() {
+  const header = document.querySelector("header");
+  if (!header) return;
+
+  const toggle = header.querySelector(".menu-toggle");
+  const nav = header.querySelector("nav");
+  if (!toggle || !nav) return;
+
+  header.classList.add("menu-ready");
+
+  const closeMenu = () => {
+    header.classList.remove("menu-open");
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-label", "Открыть меню");
+  };
+
+  const openMenu = () => {
+    header.classList.add("menu-open");
+    toggle.setAttribute("aria-expanded", "true");
+    toggle.setAttribute("aria-label", "Закрыть меню");
+  };
+
+  closeMenu();
+
+  toggle.addEventListener("click", () => {
+    if (header.classList.contains("menu-open")) {
+      closeMenu();
+    } else {
+      openMenu();
+    }
+  });
+
+  nav.querySelectorAll("a").forEach(link => link.addEventListener("click", closeMenu));
+
+  document.addEventListener("click", event => {
+    if (!header.classList.contains("menu-open")) return;
+    if (!header.contains(event.target)) {
+      closeMenu();
+    }
+  });
+
+  const mq = window.matchMedia("(min-width: 769px)");
+  const syncMenu = e => {
+    if (e.matches) {
+      closeMenu();
+    }
+  };
+  if (typeof mq.addEventListener === "function") mq.addEventListener("change", syncMenu);
+  else if (typeof mq.addListener === "function") mq.addListener(syncMenu);
+
+  syncMenu(mq);
+}
+
+/* Инициализация главной */
+document.addEventListener("DOMContentLoaded", () => {
+  renderGroups();
+  initToTop();
+  prepareProfessionHeader();
+  initMobileMenu();
+});
+
+/* Анимация появления */
+const style = document.createElement("style");
+style.textContent = `
+@keyframes fadeIn {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}`;
+document.head.appendChild(style);
+
+/* ==========================================================
+   Страница профессии (#profession)
+========================================================== */
+async function loadProfessionPage() {
+  const root = document.getElementById("profession");
+  if (!root) return;
+
+  const params = new URLSearchParams(location.search);
+  const profId = params.get("id");
+  if (!profId) { root.innerHTML = `<p class="error">Не указана профессия.</p>`; return; }
+
+  try {
+    const [allProf, allGroups] = await Promise.all([getProfessions(), getGroups()]);
+    const prof = allProf.find(p => String(p["ID"]) === String(profId));
+    if (!prof) { root.innerHTML = `<p class="error">Профессия не найдена.</p>`; return; }
+
+    const groupId = String(prof["Группа (ID)"] || "").trim();
+    const group = allGroups.find(g => g.id === groupId);
+    const groupName = group ? group.name : "Группа не найдена";
+
+    const title = safe(prof["Название профессии"]);
+    const short = safe(prof["Описание"]);
+    const about = safe(prof["Общее описание"]);
+    const roles = safe(prof["Примеры ролей и трудовых функций"]);
+    const skills = safe(prof["Ключевые компетенции / навыки"]);
+    const recs  = safe(prof["Рекомендации"]);
+
+    root.innerHTML = `
+      <main class="profession-page">
+        <article class="profession-card glass" id="prof-card">
+          <header class="prof-header">
+            <h1 class="prof-title">${title}</h1>
+            <p class="prof-group-name">${safe(groupName)}</p>
+          </header>
+
+          <section class="prof-section">
+            <h2>Описание</h2>
+            ${(() => {
+              const blocks = [];
+              if (short) blocks.push(`<p class="prof-short">${short}</p>`);
+              if (about) blocks.push(`<p>${about}</p>`);
+              if (!blocks.length) blocks.push(`<p>—</p>`);
+              return blocks.join("");
+            })()}
+          </section>
+
+          <section class="prof-section">
+            <h2>Примеры ролей и трудовых функций</h2>
+            <p>${roles || "—"}</p>
+          </section>
+
+          <section class="prof-section">
+            <h2>Ключевые компетенции / навыки</h2>
+            <p>${skills || "—"}</p>
+          </section>
+
+          ${recs ? `
+          <aside class="prof-recommend">
+            <div class="rec-title">Рекомендации</div>
+            <div class="rec-body">${recs}</div>
+          </aside>` : ``}
+
+          <div class="prof-nav">
+            <a class="btn" href="index.html#groups">← К списку групп</a>
+          </div>
+        </article>
+      </main>
+    `;
+
+    const card = document.getElementById("prof-card");
+    card.classList.add("appear");
+    setTimeout(() => card.classList.remove("appear"), 600);
+    setTimeout(() => card.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
+
+  } catch (err) {
+    console.error(err);
+    root.innerHTML = `<p class="error">Ошибка загрузки данных. Проверьте доступ к таблице.</p>`;
+  }
+}
