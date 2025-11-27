@@ -248,10 +248,8 @@ function prepareProfessionHeader() {
 
   const links = [
     { href: "index.html", text: "Главная" },
-    { href: "test.html", text: "Тест" },
-    { href: "index.html#groups", text: "Профессии" },
-    { href: "index.html#docs", text: "Документация" },
-    { href: "index.html#contacts", text: "Контакты" }
+    { href: "index.html#groups", text: "ТОП 10" },
+    { href: "index.html#docs", text: "Документация" }
   ];
 
   nav.innerHTML = "";
