@@ -1,0 +1,464 @@
+:root {
+  color-scheme: light;
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --primary: #0b2c5a;
+  --text: #101828;
+  --muted: #5b667a;
+  --border: #d6dee9;
+  --shadow: 0 10px 30px rgba(12, 28, 64, 0.08);
+  --radius: 16px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", "Segoe UI", "Roboto", "Arial", sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.6;
+}
+
+.skip-link {
+  position: absolute;
+  left: -999px;
+  top: 0;
+  background: var(--primary);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 0 0 12px 12px;
+  z-index: 10;
+}
+
+.skip-link:focus {
+  left: 16px;
+}
+
+.container {
+  width: min(1120px, 90vw);
+  margin: 0 auto;
+}
+
+.hero {
+  padding: 64px 0 32px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0 0 8px;
+}
+
+.rgsu-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  transition: border 0.2s ease, box-shadow 0.2s ease;
+}
+
+.rgsu-logo img {
+  height: 48px;
+  width: auto;
+  display: block;
+}
+
+.rgsu-logo:focus,
+.rgsu-logo:hover {
+  border-color: var(--border);
+  box-shadow: 0 6px 16px rgba(11, 44, 90, 0.12);
+  outline: none;
+}
+
+.hero h1 {
+  margin: 0 0 12px;
+  font-size: clamp(2rem, 3vw, 2.8rem);
+  color: var(--primary);
+}
+
+.lead {
+  max-width: 720px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.controls {
+  padding: 32px 0 24px;
+  display: grid;
+  gap: 20px;
+  background: var(--surface);
+  border-radius: calc(var(--radius) + 4px);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  margin-top: -24px;
+  position: relative;
+}
+
+.controls-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  padding: 0 24px;
+}
+
+.controls-header h2 {
+  margin: 0 0 6px;
+  color: var(--primary);
+  font-size: 1.35rem;
+}
+
+.controls-header p {
+  margin: 0;
+  color: var(--muted);
+  max-width: 480px;
+}
+
+.controls-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  align-items: end;
+  padding: 0 24px 8px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.search-field {
+  grid-column: span 2;
+}
+
+.field input,
+.field select {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  font-size: 1rem;
+  background: #fff;
+  color: var(--text);
+}
+
+.field input[type="search"]::-webkit-search-cancel-button,
+.field input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.field input:focus,
+.field select:focus {
+  outline: 3px solid rgba(11, 44, 90, 0.25);
+  border-color: var(--primary);
+}
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-wrapper input {
+  width: 100%;
+  padding-right: 42px;
+}
+
+.clear-button {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: #eef2f7;
+  color: var(--muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: none;
+}
+
+.clear-button.is-visible {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clear-button:hover,
+.clear-button:focus {
+  background: #dbe3ee;
+  outline: none;
+}
+
+.helper {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.checkbox-field .checkbox-control {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.checkbox-field input {
+  width: 18px;
+  height: 18px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+}
+
+.reset-button {
+  padding: 12px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  align-self: end;
+}
+
+.reset-button:hover,
+.reset-button:focus {
+  background: #0a244a;
+  box-shadow: 0 6px 16px rgba(11, 44, 90, 0.2);
+  outline: none;
+}
+
+.reset-button:active {
+  transform: translateY(1px);
+}
+
+.reset-button:disabled {
+  background: #b8c4d6;
+  border-color: #b8c4d6;
+  color: #f4f6fa;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.stats {
+  text-align: right;
+  font-weight: 600;
+  color: var(--primary);
+  display: grid;
+  gap: 8px;
+}
+
+.active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.filter-chip {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(11, 44, 90, 0.08);
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+  padding-bottom: 48px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 260px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 30px rgba(12, 28, 64, 0.12);
+}
+
+.card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge.accent {
+  background: rgba(30, 136, 229, 0.14);
+  color: #1b5fa7;
+}
+
+.card h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--primary);
+}
+
+.card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.card .meta {
+  display: grid;
+  gap: 6px;
+  font-size: 0.9rem;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+}
+
+.card .meta span {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.card a {
+  margin-top: auto;
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  width: fit-content;
+}
+
+.card a:hover,
+.card a:focus {
+  border-bottom-color: var(--primary);
+}
+
+.empty-state {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 32px;
+  text-align: center;
+  border: 1px solid var(--border);
+  margin-bottom: 48px;
+}
+
+.footer {
+  padding: 24px 0 48px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 960px) {
+  .controls-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .stats {
+    text-align: left;
+  }
+
+  .active-filters {
+    justify-content: flex-start;
+  }
+
+  .controls-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .hero {
+    padding: 48px 0 24px;
+  }
+
+  .hero-top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .rgsu-logo img {
+    height: 40px;
+  }
+
+  .controls {
+    margin-top: 0;
+  }
+
+  .controls-header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 0 16px;
+  }
+
+  .controls-grid {
+    grid-template-columns: 1fr;
+    padding: 0 16px 8px;
+  }
+
+  .search-field {
+    grid-column: auto;
+  }
+
+  .actions {
+    justify-content: stretch;
+  }
+
+  .reset-button {
+    width: 100%;
+  }
+
+  .stats {
+    text-align: left;
+  }
+
+  .active-filters {
+    justify-content: flex-start;
+  }
+}
