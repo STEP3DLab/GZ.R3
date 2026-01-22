@@ -3,74 +3,65 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Электронный каталог профориентации — РГСУ</title>
-
-  <!-- Шрифты и стили -->
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <title>Каталог образовательных программ по ТОП-10 макрогрупп</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-
-  <!-- Шапка (фон как у сайта, не фиксируется) -->
-  <header>
-    <a href="https://rgsu.net" target="_blank" aria-label="Сайт РГСУ">
-      <img src="RGSU_logo.png" alt="РГСУ" />
-    </a>
-    <button class="menu-toggle" type="button" aria-label="Открыть меню" aria-controls="mainNav" aria-expanded="false">
-      <span class="menu-toggle__bar"></span>
-      <span class="menu-toggle__bar"></span>
-      <span class="menu-toggle__bar"></span>
-    </button>
-    <nav id="mainNav">
-      <a href="#top">Главная</a>
-      <a href="#groups">ТОП 10</a>
-      <a href="#docs">Документация</a>
-    </nav>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div>
+        <p class="eyebrow">Каталог образовательных программ</p>
+        <h1>ТОП-10 макрогрупп для быстрой переквалификации</h1>
+      </div>
+      <div class="header-meta">
+        <span class="meta-pill" id="programCount">0 программ</span>
+        <span class="meta-pill" id="groupCount">0 макрогрупп</span>
+      </div>
+    </div>
   </header>
 
-  <!-- Якорь для «вверх» -->
-  <div id="top"></div>
+  <main class="container">
+    <section class="search-panel" aria-label="Поиск программ">
+      <div class="search-input">
+        <label for="search">Поиск по программе, навыкам или организации</label>
+        <input id="search" type="search" placeholder="Например: логистика, поддержка, аналитика" autocomplete="off" />
+      </div>
+      <div class="search-input">
+        <label for="groupSelect">Макрогруппа</label>
+        <select id="groupSelect"></select>
+      </div>
+      <div class="search-input">
+        <label for="formatSelect">Формат</label>
+        <select id="formatSelect"></select>
+      </div>
+    </section>
 
-  <!-- Герой-блок -->
-  <section class="hero">
-    <h1>ТОП 10</h1>
-    <p>укрупненных профессий для профориентации участников СВО</p>
+    <section class="group-grid" aria-live="polite" aria-label="ТОП-10 макрогрупп" id="groupGrid"></section>
 
-  </section>
+    <section class="results" aria-live="polite">
+      <div class="results-header">
+        <h2>Программы обучения</h2>
+        <p id="resultsHint">Введите запрос, чтобы уточнить выбор.</p>
+      </div>
+      <div id="programs" class="program-grid"></div>
+    </section>
+  </main>
 
-  <!-- 10 укрупнённых групп (заполняются из Google Sheets) -->
-  <section id="groups" class="groups" aria-live="polite">
-    <div class="groups-loader">Загружаем группы…</div>
-    <noscript>Включите JavaScript, чтобы увидеть список групп.</noscript>
-  </section>
-
-  <!-- Документация -->
-  <section id="docs" class="docs">
-    <h2>Документация проекта</h2>
-    <p>
-      <a href="https://drive.google.com/file/d/1ntlhXtUr2QqGR3ODu3t_338ge-BweA1D/view?usp=sharing" target="_blank" rel="noopener">Сборник основных укрупненных профессий    </a>|
-      <a href="https://drive.google.com/file/d/1PV9bYs6eVQTGHgXCe55JEXwtz7USUs9f/view?usp=sharing" target="_blank" rel="noopener">    Сборник профилей личностных компетенций</a> 
-    </p>
-  </section>
-
-  <!-- Подвал -->
-  <footer id="contacts">
-    <p>© 2025 РГСУ | <a href="mailto:info@rgsu.net">info@rgsu.net</a></p>
-    <p>г. Москва, ул. Вильгельма Пика, д. 4, корп. 1</p>
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div>
+        <h3>Ресурсный каталог программ</h3>
+        <p>Данные подготовлены на основе файла «Ресоциализация СВО - Итог.csv».</p>
+      </div>
+      <div>
+        <a class="ghost-link" href="Ресоциализация%20СВО%20-%20Итог.csv" download>Скачать CSV</a>
+      </div>
+    </div>
   </footer>
 
-  <!-- Кнопка «наверх» -->
-  <button id="toTop" class="to-top" aria-label="Вернуться к началу страницы" title="Наверх">▲</button>
-
-  <!-- Скрипт -->
   <script src="script.js"></script>
-
-  <!-- Конфигурация: ID вашей Google Таблицы -->
-  <script>
-    // ID берём из URL Google Sheets: .../spreadsheets/d/ID_ЗДЕСЬ/edit
-    window.GSHEET_ID = "1eJyocvC47_MoC2fNYycTEjOxmPSxT7UM3-7Du9-dcEA";
-    window.SHEET_GROUPS = "Группы";
-    window.SHEET_PROFESSIONS = "Профессии";
-  </script>
 </body>
 </html>
