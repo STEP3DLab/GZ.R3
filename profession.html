@@ -1,0 +1,43 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Категория</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <a href="index.html">
+      <img src="RGSU_logo.png" alt="РГСУ" />
+    </a>
+    <nav>
+      <a href="index.html">Главная</a>
+      <a href="index.html#docs">Документы</a>
+    </nav>
+  </header>
+
+  <main class="profession-page">
+    <article id="profession" class="profession-card glass">
+      <div class="loading">Загружаем данные…</div>
+    </article>
+  </main>
+
+  <footer>
+    <p>© 2025 Технопарк РГСУ | <a href="mailto:info@rgsu.net">info@rgsu.net</a></p>
+  </footer>
+
+  <script src="script.js"></script>
+  <!-- Конфиг: ID Google Sheets -->
+  <script>
+    window.GSHEET_ID = "1eJyocvC47_MoC2fNYycTEjOxmPSxT7UM3-7Du9-dcEA";
+    window.SHEET_GROUPS = "Группы";
+    window.SHEET_PROFESSIONS = "Профессии";
+    // запуск рендера страницы профессии
+    loadProfessionPage();
+  </script>
+</body>
+</html>
+

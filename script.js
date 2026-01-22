@@ -1,227 +1,432 @@
-const CSV_PATH = "Ресоциализация СВО - Итог.csv";
+/* ==========================================================
+   Google Sheets (GViz JSON)
+========================================================== */
 
-const state = {
-  programs: [],
-  groups: [],
-  formats: [],
-  query: "",
-  group: "all",
-  format: "all"
-};
+async function fetchGviz(sheetName) {
+  const SHEET_ID = window.GSHEET_ID;
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+  const res = await fetch(url, { cache: "no-store" });
 
-const nodes = {
-  search: document.getElementById("search"),
-  groupSelect: document.getElementById("groupSelect"),
-  formatSelect: document.getElementById("formatSelect"),
-  groupGrid: document.getElementById("groupGrid"),
-  programs: document.getElementById("programs"),
-  programCount: document.getElementById("programCount"),
-  groupCount: document.getElementById("groupCount"),
-  resultsHint: document.getElementById("resultsHint")
-};
-
-const normalize = (value = "") =>
-  value
-    .toString()
-    .toLowerCase()
-    .replace(/ё/g, "е")
-    .replace(/\s+/g, " ")
-    .trim();
-
-const parseCSV = (text) => {
-  const rows = [];
-  let current = [];
-  let field = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < text.length; i += 1) {
-    const char = text[i];
-    const next = text[i + 1];
-
-    if (char === '"') {
-      if (inQuotes && next === '"') {
-        field += '"';
-        i += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (char === "," && !inQuotes) {
-      current.push(field);
-      field = "";
-    } else if (char === "\n" && !inQuotes) {
-      current.push(field);
-      rows.push(current);
-      current = [];
-      field = "";
-    } else if (char !== "\r") {
-      field += char;
-    }
+  if (!res.ok) {
+    const err = new Error(`GViz request failed with ${res.status}`);
+    err.status = res.status;
+    throw err;
   }
 
-  if (field || current.length) {
-    current.push(field);
-    rows.push(current);
+  const text = await res.text();
+
+  const match = text.match(/google\.visualization\.Query\.setResponse\((.*)\);?/s);
+  if (!match || !match[1]) {
+    console.error("Unexpected GViz payload", text.slice(0, 200));
+    throw new Error("GViz response format changed");
   }
 
-  const [header, ...data] = rows;
-  return data
-    .filter((row) => row.some((cell) => cell && cell.trim()))
-    .map((row) => {
-      const entry = {};
-      header.forEach((key, index) => {
-        entry[key.trim()] = (row[index] || "").trim();
-      });
-      return entry;
-    });
-};
+  const json = JSON.parse(match[1]);
+  return json.table;
+}
 
-const loadPrograms = async () => {
-  const response = await fetch(encodeURI(CSV_PATH));
-  if (!response.ok) {
-    throw new Error("Не удалось загрузить CSV");
-  }
-  const text = await response.text();
-  return parseCSV(text);
-};
+function gvizToObjects(table) {
+  const headers = table.cols.map(c => (c?.label || "").trim());
+  const rows = table.rows
+    .map(r => (r.c || []).map(cell => (cell && cell.v != null ? String(cell.v) : "")))
+    .filter(row => row.some(v => v !== ""));
+  const maybeHeader = rows[0] || [];
+  const sameHeader = maybeHeader.every((v, i) =>
+    headers[i] ? v.trim().toLowerCase() === headers[i].trim().toLowerCase() : false
+  );
+  const data = sameHeader ? rows.slice(1) : rows;
 
-const buildFilters = () => {
-  nodes.groupSelect.innerHTML = "";
-  const groupOption = document.createElement("option");
-  groupOption.value = "all";
-  groupOption.textContent = "Все макрогруппы";
-  nodes.groupSelect.appendChild(groupOption);
-  state.groups.forEach((group) => {
-    const option = document.createElement("option");
-    option.value = group;
-    option.textContent = group;
-    nodes.groupSelect.appendChild(option);
+  return data.map(row => {
+    const obj = {};
+    headers.forEach((h, i) => (obj[h || `col_${i}`] = row[i] || ""));
+    return obj;
   });
+}
 
-  nodes.formatSelect.innerHTML = "";
-  const formatOption = document.createElement("option");
-  formatOption.value = "all";
-  formatOption.textContent = "Любой формат";
-  nodes.formatSelect.appendChild(formatOption);
-  state.formats.forEach((format) => {
-    const option = document.createElement("option");
-    option.value = format;
-    option.textContent = format;
-    nodes.formatSelect.appendChild(option);
-  });
-};
+let professionsCache = null;
+let groupsCache = null;
 
-const renderGroups = () => {
-  nodes.groupGrid.innerHTML = "";
-  const counts = state.groups.map((group) => {
-    const total = state.programs.filter((program) => program["Макрогруппа"] === group).length;
-    return { group, total };
-  });
+async function getProfessions() {
+  if (professionsCache) return professionsCache;
+  const table = await fetchGviz(window.SHEET_PROFESSIONS || "Профессии");
+  professionsCache = gvizToObjects(table);
+  return professionsCache;
+}
+async function getGroups() {
+  if (groupsCache) return groupsCache;
+  const table = await fetchGviz(window.SHEET_GROUPS || "Группы");
+  groupsCache = gvizToObjects(table).map(g => ({
+    id: String(g["ID группы"] || g["ID"] || "").trim(),
+    name: (g["Название группы"] || g["Название"] || "").trim(),
+    desc: (g["Описание"] || "").trim()
+  }));
+  return groupsCache;
+}
 
-  counts.forEach(({ group, total }) => {
-    const card = document.createElement("article");
-    card.className = "group-card";
-    card.innerHTML = `
-      <h3>${group}</h3>
-      <p><span class="count">${total}</span> программ</p>
-      <button type="button" class="ghost-link">Показать</button>
-    `;
-    const button = card.querySelector("button");
-    button.addEventListener("click", () => {
-      state.group = group;
-      nodes.groupSelect.value = group;
-      renderPrograms();
-      nodes.programs.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-    nodes.groupGrid.appendChild(card);
-  });
-};
+function safe(t) {
+  return String(t || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
 
-const buildSearchIndex = (program) =>
-  normalize([
-    program["Программа"],
-    program["Макрогруппа"],
-    program["Навыки"],
-    program["Организация"],
-    program["Формат"],
-    program["Уровень"]
-  ].join(" "));
+/* ==========================================================
+   Главная: рендер групп
+========================================================== */
+async function renderGroups() {
+  const wrap = document.querySelector(".groups");
+  if (!wrap) return;
 
-const filterPrograms = () => {
-  const tokens = normalize(state.query).split(" ").filter(Boolean);
-  return state.programs
-    .map((program) => ({
-      program,
-      index: buildSearchIndex(program)
-    }))
-    .filter(({ program, index }) => {
-      if (state.group !== "all" && program["Макрогруппа"] !== state.group) return false;
-      if (state.format !== "all" && program["Формат"] !== state.format) return false;
-      if (!tokens.length) return true;
-      return tokens.every((token) => index.includes(token));
-    })
-    .map(({ program }) => program);
-};
+  wrap.innerHTML = `<div class="groups-loader">Загружаем группы…</div>`;
 
-const renderPrograms = () => {
-  const results = filterPrograms();
-  nodes.programs.innerHTML = "";
-
-  if (!results.length) {
-    nodes.resultsHint.textContent = "Ничего не найдено. Попробуйте изменить запрос.";
-  } else {
-    nodes.resultsHint.textContent = `Найдено программ: ${results.length}`;
-  }
-
-  results.forEach((program) => {
-    const card = document.createElement("article");
-    card.className = "program-card";
-    card.innerHTML = `
-      <h4>${program["Программа"]}</h4>
-      <div class="program-meta">
-        <span>${program["Макрогруппа"]}</span>
-        <span>${program["Формат"]}</span>
-        <span>${program["Длительность"]}</span>
-        <span>${program["Уровень"]}</span>
-      </div>
-      <p>${program["Навыки"]}</p>
-      <p>${program["Организация"]}</p>
-      <a href="${program["Ссылка"]}" target="_blank" rel="noopener">Перейти на страницу программы</a>
-    `;
-    nodes.programs.appendChild(card);
-  });
-
-  nodes.programCount.textContent = `${state.programs.length} программ`;
-  nodes.groupCount.textContent = `${state.groups.length} макрогрупп`;
-};
-
-const init = async () => {
   try {
-    state.programs = await loadPrograms();
-    state.groups = [...new Set(state.programs.map((p) => p["Макрогруппа"]))].sort();
-    state.formats = [...new Set(state.programs.map((p) => p["Формат"]))].sort();
-    buildFilters();
-    renderGroups();
-    renderPrograms();
-  } catch (error) {
-    nodes.groupGrid.innerHTML = `<p>Ошибка загрузки данных. Проверьте CSV файл.</p>`;
-    nodes.resultsHint.textContent = "Не удалось загрузить данные.";
-    console.error(error);
+    const table = await fetchGviz(window.SHEET_GROUPS || "Группы");
+    const groups = gvizToObjects(table);
+    wrap.innerHTML = "";
+
+    groups.forEach(g => {
+      const id = g["ID группы"] || g["ID"] || "";
+      const title = g["Название группы"] || g["Название"] || "Без названия";
+      const desc = g["Описание"] || "";
+
+      const card = document.createElement("div");
+      card.className = "group-card";
+      card.tabIndex = 0;
+      card.setAttribute("role", "button");
+      card.setAttribute("aria-expanded", "false");
+      card.dataset.groupId = id;
+
+      card.innerHTML = `
+        <h3>${safe(title)}</h3>
+        ${desc ? `<p>${safe(desc)}</p>` : ""}
+      `;
+
+      const smoothScrollToCard = () => {
+        const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const isMobile = window.matchMedia("(max-width: 768px)").matches;
+        const block = isMobile ? "start" : "center";
+
+        card.scrollIntoView({
+          behavior: prefersReducedMotion ? "instant" : "smooth",
+          block,
+          inline: "nearest"
+        });
+
+        if (prefersReducedMotion) return Promise.resolve();
+
+        return new Promise(resolve => {
+          let lastY = window.scrollY;
+          let stableFrames = 0;
+          let totalFrames = 0;
+          const maxFrames = 45; // ~750ms at 60fps
+          let done = false;
+          const check = () => {
+            if (done) return;
+            totalFrames += 1;
+            const currentY = window.scrollY;
+            if (Math.abs(currentY - lastY) < 1) {
+              stableFrames += 1;
+            } else {
+              stableFrames = 0;
+              lastY = currentY;
+            }
+
+            if (stableFrames > 5 || totalFrames >= maxFrames) {
+              done = true;
+              resolve();
+              return;
+            }
+            requestAnimationFrame(check);
+          };
+
+          requestAnimationFrame(check);
+        });
+      };
+
+      const toggle = async () => {
+        const expanded = card.classList.toggle("expanded");
+        card.setAttribute("aria-expanded", expanded ? "true" : "false");
+
+        const exists = card.querySelector(".prof-list");
+        if (!expanded && exists) { exists.remove(); return; }
+
+        if (expanded && !exists) {
+          await smoothScrollToCard();
+          const list = document.createElement("div");
+          list.className = "prof-list";
+          list.innerHTML = `<div class="groups-loader">Загружаем профессии…</div>`;
+          card.appendChild(list);
+
+          const all = await getProfessions();
+          const items = all.filter(p => String(p["Группа (ID)"]) === String(id));
+
+          const clip = (t, n = 140) => (t || "").length > n ? (t || "").slice(0, n).trim() + "…" : (t || "");
+
+          list.innerHTML = "";
+          items.forEach((p, i) => {
+            const pid = p["ID"] || "";
+            const name = p["Название профессии"] || "Профессия";
+            const short = clip(p["Описание"] || p["Краткое описание"] || "");
+            const link = `profession.html?id=${encodeURIComponent(pid)}`;
+
+            const item = document.createElement("div");
+            item.className = "prof-card";
+            item.style.animation = `fadeIn 0.4s ease ${i * 0.05}s both`;
+            item.innerHTML = `
+              <h4>${safe(name)}</h4>
+              ${short ? `<p>${safe(short)}</p>` : `<p>Описание будет добавлено.</p>`}
+              <a class="btn" href="${link}">Подробнее</a>
+            `;
+            list.appendChild(item);
+          });
+
+          if (!items.length) {
+            list.innerHTML = `<div class="groups-loader" style="opacity:.8">
+              Пока нет данных по профессиям этой группы.
+            </div>`;
+          }
+        } else if (expanded) {
+          await smoothScrollToCard();
+        }
+      };
+
+      card.addEventListener("click", toggle);
+      card.addEventListener("keydown", e => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+      });
+
+      wrap.appendChild(card);
+    });
+  } catch (e) {
+    console.error("Ошибка загрузки групп:", e);
+    wrap.innerHTML = `<div class="groups-loader" style="color:#b00020">
+      Не удалось загрузить группы. Проверьте доступ к таблице (режим: «читатель»).
+    </div>`;
   }
-};
+}
 
-nodes.search.addEventListener("input", (event) => {
-  state.query = event.target.value;
-  renderPrograms();
+/* Плавная прокрутка по якорям */
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+  anchor.addEventListener("click", function (e) {
+    e.preventDefault();
+    const t = document.querySelector(this.getAttribute("href"));
+    if (t) t.scrollIntoView({ behavior: "smooth" });
+  });
 });
 
-nodes.groupSelect.addEventListener("change", (event) => {
-  state.group = event.target.value;
-  renderPrograms();
+/* Кнопка «наверх» */
+function initToTop() {
+  const btn = document.getElementById("toTop");
+  if (!btn) return;
+
+  const toggle = () => {
+    if (window.scrollY > 300) btn.classList.add("to-top--visible");
+    else btn.classList.remove("to-top--visible");
+  };
+  toggle();
+
+  window.addEventListener("scroll", toggle, { passive: true });
+  btn.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+}
+
+function prepareProfessionHeader() {
+  if (!document.getElementById("profession")) return;
+
+  const header = document.querySelector("header");
+  if (!header) return;
+
+  const nav = header.querySelector("nav");
+  if (!nav) return;
+
+  const logoImg = header.querySelector("img");
+  const logoLink = logoImg ? logoImg.closest("a") : header.querySelector("a");
+  if (logoLink) {
+    logoLink.href = "https://rgsu.net";
+    logoLink.setAttribute("target", "_blank");
+    logoLink.setAttribute("rel", "noopener");
+    logoLink.setAttribute("aria-label", "Сайт РГСУ");
+  }
+
+  nav.id = "mainNav";
+
+  const links = [
+    { href: "index.html", text: "Главная" },
+    { href: "index.html#groups", text: "ТОП 10" },
+    { href: "index.html#docs", text: "Документация" }
+  ];
+
+  nav.innerHTML = "";
+  links.forEach(({ href, text }) => {
+    const link = document.createElement("a");
+    link.href = href;
+    link.textContent = text;
+    nav.appendChild(link);
+  });
+
+  let toggle = header.querySelector(".menu-toggle");
+  if (!toggle) {
+    toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "menu-toggle";
+    toggle.setAttribute("aria-label", "Открыть меню");
+    toggle.setAttribute("aria-controls", "mainNav");
+    toggle.setAttribute("aria-expanded", "false");
+
+    for (let i = 0; i < 3; i += 1) {
+      const bar = document.createElement("span");
+      bar.className = "menu-toggle__bar";
+      toggle.appendChild(bar);
+    }
+
+    header.insertBefore(toggle, nav);
+  } else {
+    toggle.setAttribute("aria-controls", "mainNav");
+  }
+}
+
+function initMobileMenu() {
+  const header = document.querySelector("header");
+  if (!header) return;
+
+  const toggle = header.querySelector(".menu-toggle");
+  const nav = header.querySelector("nav");
+  if (!toggle || !nav) return;
+
+  header.classList.add("menu-ready");
+
+  const closeMenu = () => {
+    header.classList.remove("menu-open");
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-label", "Открыть меню");
+  };
+
+  const openMenu = () => {
+    header.classList.add("menu-open");
+    toggle.setAttribute("aria-expanded", "true");
+    toggle.setAttribute("aria-label", "Закрыть меню");
+  };
+
+  closeMenu();
+
+  toggle.addEventListener("click", () => {
+    if (header.classList.contains("menu-open")) {
+      closeMenu();
+    } else {
+      openMenu();
+    }
+  });
+
+  nav.querySelectorAll("a").forEach(link => link.addEventListener("click", closeMenu));
+
+  document.addEventListener("click", event => {
+    if (!header.classList.contains("menu-open")) return;
+    if (!header.contains(event.target)) {
+      closeMenu();
+    }
+  });
+
+  const mq = window.matchMedia("(min-width: 769px)");
+  const syncMenu = e => {
+    if (e.matches) {
+      closeMenu();
+    }
+  };
+  if (typeof mq.addEventListener === "function") mq.addEventListener("change", syncMenu);
+  else if (typeof mq.addListener === "function") mq.addListener(syncMenu);
+
+  syncMenu(mq);
+}
+
+/* Инициализация главной */
+document.addEventListener("DOMContentLoaded", () => {
+  renderGroups();
+  initToTop();
+  prepareProfessionHeader();
+  initMobileMenu();
 });
 
-nodes.formatSelect.addEventListener("change", (event) => {
-  state.format = event.target.value;
-  renderPrograms();
-});
+/* Анимация появления */
+const style = document.createElement("style");
+style.textContent = `
+@keyframes fadeIn {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}`;
+document.head.appendChild(style);
 
-init();
+/* ==========================================================
+   Страница профессии (#profession)
+========================================================== */
+async function loadProfessionPage() {
+  const root = document.getElementById("profession");
+  if (!root) return;
+
+  const params = new URLSearchParams(location.search);
+  const profId = params.get("id");
+  if (!profId) { root.innerHTML = `<p class="error">Не указана профессия.</p>`; return; }
+
+  try {
+    const [allProf, allGroups] = await Promise.all([getProfessions(), getGroups()]);
+    const prof = allProf.find(p => String(p["ID"]) === String(profId));
+    if (!prof) { root.innerHTML = `<p class="error">Профессия не найдена.</p>`; return; }
+
+    const groupId = String(prof["Группа (ID)"] || "").trim();
+    const group = allGroups.find(g => g.id === groupId);
+    const groupName = group ? group.name : "Группа не найдена";
+
+    const title = safe(prof["Название профессии"]);
+    const short = safe(prof["Описание"]);
+    const about = safe(prof["Общее описание"]);
+    const roles = safe(prof["Примеры ролей и трудовых функций"]);
+    const skills = safe(prof["Ключевые компетенции / навыки"]);
+    const recs  = safe(prof["Рекомендации"]);
+
+    root.innerHTML = `
+      <main class="profession-page">
+        <article class="profession-card glass" id="prof-card">
+          <header class="prof-header">
+            <h1 class="prof-title">${title}</h1>
+            <p class="prof-group-name">${safe(groupName)}</p>
+          </header>
+
+          <section class="prof-section">
+            <h2>Описание</h2>
+            ${(() => {
+              const blocks = [];
+              if (short) blocks.push(`<p class="prof-short">${short}</p>`);
+              if (about) blocks.push(`<p>${about}</p>`);
+              if (!blocks.length) blocks.push(`<p>—</p>`);
+              return blocks.join("");
+            })()}
+          </section>
+
+          <section class="prof-section">
+            <h2>Примеры ролей</h2>
+            <p>${roles || "—"}</p>
+          </section>
+
+          <section class="prof-section">
+            <h2>Ключевые компетенции / навыки</h2>
+            <p>${skills || "—"}</p>
+          </section>
+
+          ${recs ? `
+          <aside class="prof-recommend">
+            <div class="rec-title">Комментарий</div>
+            <div class="rec-body">${recs}</div>
+          </aside>` : ``}
+
+          <div class="prof-nav">
+            <a class="btn" href="index.html#groups">← К списку групп</a>
+          </div>
+        </article>
+      </main>
+    `;
+
+    const card = document.getElementById("prof-card");
+    card.classList.add("appear");
+    setTimeout(() => card.classList.remove("appear"), 600);
+    setTimeout(() => card.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
+
+  } catch (err) {
+    console.error(err);
+    root.innerHTML = `<p class="error">Ошибка загрузки данных. Проверьте доступ к таблице.</p>`;
+  }
+}
