@@ -390,6 +390,26 @@ body {
   border-bottom-color: var(--primary);
 }
 
+.load-warning {
+  margin: 24px 0;
+  padding: 16px 20px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(233, 180, 0, 0.45);
+  background: rgba(255, 244, 204, 0.5);
+  color: var(--text);
+  display: grid;
+  gap: 6px;
+}
+
+.load-warning strong {
+  font-size: 1rem;
+}
+
+.load-warning p {
+  margin: 0;
+  color: var(--muted);
+}
+
 .empty-state {
   background: var(--surface);
   border-radius: var(--radius);
