@@ -14,7 +14,6 @@ const resetFiltersButton = document.getElementById('resetFilters');
 const resetFiltersEmptyButton = document.getElementById('resetFiltersEmpty');
 const clearSearchButton = document.getElementById('clearSearch');
 const grid = document.getElementById('programGrid');
-const totalLoaded = document.getElementById('totalLoaded');
 const totalVisible = document.getElementById('totalVisible');
 const activeFilters = document.getElementById('activeFilters');
 const emptyState = document.getElementById('emptyState');
@@ -29,15 +28,27 @@ const CANONICAL_DIRECTIONS = [
   'Строительство, архитектура и геоданные',
 ];
 
-const BASE_EDUCATION_HEADERS = [
-  'base_education_level',
-  'base_education',
-  'basic_education',
-  'basic_education_level',
-  'education_base',
-  'education_base_level',
-  'базовый уровень образования',
-  'базовый уровень',
+const BASE_EDUCATION_RULES = [
+  {
+    value: 'Основное общее (9 классов)',
+    allowedFormats: ['СПО'],
+    hint: 'После 9 классов доступны только программы СПО.',
+  },
+  {
+    value: 'Среднее общее (11 классов)',
+    allowedFormats: ['СПО', 'ВО'],
+    hint: 'После 11 классов доступны программы СПО и ВО.',
+  },
+  {
+    value: 'Среднепрофессиональное (СПО)',
+    allowedFormats: ['СПО', 'ВО'],
+    hint: 'После СПО доступны программы СПО и ВО.',
+  },
+  {
+    value: 'Высшее (ВО)',
+    allowedFormats: ['ВО'],
+    hint: 'После ВО доступны программы ВО.',
+  },
 ];
 
 const DIRECTION_EXACT_MAP = new Map([
@@ -423,12 +434,6 @@ const parseCSV = (text, delimiter = ';') => {
   return { headers, rows: entries };
 };
 
-const findHeader = (headers, candidates) => {
-  const headerMap = new Map(headers.map((header) => [normalizeKey(header), header]));
-  const found = candidates.map((candidate) => headerMap.get(normalizeKey(candidate))).find(Boolean);
-  return found || '';
-};
-
 // Канонизация направлений под точный список каталога.
 const directionFromValue = (value) => {
   const normalized = normalizeKey(value);
@@ -557,7 +562,6 @@ const createCard = (program) => {
 
   const metaItems = [
     ['Формат обучения', getDisplayValue(program.format, 'Не указано')],
-    ['Базовый уровень образования', getDisplayValue(program.baseEducation, 'Не указано')],
     ['Направление', getDisplayValue(program.direction, 'Другое')],
     ['Код ФГОС', getDisplayValue(program.fgosCode, 'Не указано')],
     ['Федеральный округ', getDisplayValue(program.federalDistrict, 'Не указано')],
@@ -649,6 +653,31 @@ const updateActiveFilters = () => {
 };
 
 // Фильтры не должны удалять строки: неизвестные значения остаются в выдаче.
+const getBaseEducationRule = (value) => BASE_EDUCATION_RULES.find((rule) => rule.value === value);
+
+const updateFormatAvailability = () => {
+  if (!formatSelect || !baseEducationSelect) {
+    return;
+  }
+
+  const rule = getBaseEducationRule(baseEducationSelect.value);
+  const allowedFormats = rule ? new Set(rule.allowedFormats) : null;
+
+  Array.from(formatSelect.options).forEach((option, index) => {
+    if (index === 0) {
+      option.disabled = false;
+      return;
+    }
+    option.disabled = Boolean(allowedFormats) && !allowedFormats.has(option.value);
+  });
+
+  if (allowedFormats && formatSelect.value && !allowedFormats.has(formatSelect.value)) {
+    formatSelect.value = '';
+  }
+
+  baseEducationHint.textContent = rule ? rule.hint : '';
+};
+
 const applyFilters = () => {
   const query = normalizeForSearch(searchInput.value.trim());
   const format = formatSelect.value;
@@ -656,13 +685,15 @@ const applyFilters = () => {
   const direction = directionSelect.value;
   const district = districtSelect.value;
   const budgetOnly = budgetToggle.checked;
+  const baseEducationRule = getBaseEducationRule(baseEducation);
+  const allowedFormats = baseEducationRule ? baseEducationRule.allowedFormats : null;
 
   const filtered = programs.filter((program) => {
     const haystack = program.searchIndex || '';
     const queryTokens = query.split(/\s+/).filter(Boolean);
     const matchesQuery = queryTokens.every((token) => haystack.includes(token));
     const matchesFormat = !format || program.format === format;
-    const matchesBaseEducation = !baseEducation || program.baseEducation === baseEducation;
+    const matchesBaseEducation = !allowedFormats || allowedFormats.includes(program.format);
     const matchesDirection = !direction || program.direction === direction;
     const matchesDistrict = !district || program.federalDistrict === district;
     const matchesBudget = !budgetOnly || normalizeText(program.budgetSeat) === 'да';
@@ -709,19 +740,12 @@ const populateBaseEducation = () => {
     return;
   }
 
-  const values = Array.from(
-    new Set(programs.map((program) => program.baseEducation).filter(Boolean))
-  ).sort();
-
-  if (values.length === 0) {
-    baseEducationSelect.disabled = true;
-    baseEducationHint.textContent = 'Нет данных в CSV';
-    return;
-  }
-
   baseEducationSelect.disabled = false;
   baseEducationHint.textContent = '';
-  populateSelect(baseEducationSelect, values);
+  populateSelect(
+    baseEducationSelect,
+    BASE_EDUCATION_RULES.map((rule) => rule.value)
+  );
 };
 
 const populateDirections = () => {
@@ -752,13 +776,12 @@ const populateDistricts = () => {
   populateSelect(districtSelect, districts);
 };
 
-const buildProgram = (raw, baseEducationKey) => {
+const buildProgram = (raw) => {
   const program = {
     id: raw.id,
     directionRaw: sanitizeText(raw.macrogroup_name),
     direction: directionFromValue(raw.macrogroup_name),
     format: sanitizeText(raw.education_level),
-    baseEducation: baseEducationKey ? sanitizeText(raw[baseEducationKey]) : '',
     fgosCode: sanitizeText(raw.fgos_code),
     institutionName: sanitizeText(raw.institution_name),
     programName: sanitizeText(raw.program_name),
@@ -786,11 +809,10 @@ const loadPrograms = async () => {
         throw new Error(`Не удалось загрузить данные CSV: ${source}`);
       }
       const text = await response.text();
-      const { headers, rows } = parseCsvWithDetection(text);
-      const baseEducationKey = findHeader(headers, BASE_EDUCATION_HEADERS);
+      const { rows } = parseCsvWithDetection(text);
 
       rows.forEach((raw) => {
-        const program = buildProgram(raw, baseEducationKey);
+        const program = buildProgram(raw);
         const key =
           program.id ||
           `${normalizeKey(program.institutionName)}|${normalizeKey(program.programName)}|${program.fgosCode}`;
@@ -819,8 +841,8 @@ const init = async () => {
     populateDirections();
     populateDistricts();
 
-    totalLoaded.textContent = programs.length;
     renderPrograms(programs);
+    updateFormatAvailability();
     updateResetButtonState();
     updateActiveFilters();
     toggleClearButton();
@@ -839,6 +861,7 @@ const resetFilters = () => {
   directionSelect.value = '';
   districtSelect.value = '';
   budgetToggle.checked = false;
+  updateFormatAvailability();
   applyFilters();
   searchInput.focus();
 };
@@ -847,7 +870,10 @@ resetFiltersButton.addEventListener('click', resetFilters);
 resetFiltersEmptyButton.addEventListener('click', resetFilters);
 searchInput.addEventListener('input', applyFilters);
 formatSelect.addEventListener('change', applyFilters);
-baseEducationSelect.addEventListener('change', applyFilters);
+baseEducationSelect.addEventListener('change', () => {
+  updateFormatAvailability();
+  applyFilters();
+});
 directionSelect.addEventListener('change', applyFilters);
 districtSelect.addEventListener('change', applyFilters);
 budgetToggle.addEventListener('change', applyFilters);
