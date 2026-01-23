@@ -16,6 +16,7 @@ const clearSearchButton = document.getElementById('clearSearch');
 const grid = document.getElementById('programGrid');
 const activeFilters = document.getElementById('activeFilters');
 const emptyState = document.getElementById('emptyState');
+const loadWarning = document.getElementById('loadWarning');
 
 const CANONICAL_DIRECTIONS = [
   'Агро, ветеринария и пищевые технологии',
@@ -795,6 +796,19 @@ const buildProgram = (raw) => {
   };
 };
 
+const updateLoadWarning = (errorCount) => {
+  if (!loadWarning) {
+    return;
+  }
+
+  if (errorCount > 0) {
+    loadWarning.hidden = false;
+    return;
+  }
+
+  loadWarning.hidden = true;
+};
+
 const loadPrograms = async () => {
   const aggregated = new Map();
   const errors = [];
@@ -804,6 +818,10 @@ const loadPrograms = async () => {
     try {
       const response = await fetch(resolvedSource, { cache: 'no-store' });
       if (!response.ok) {
+        console.warn('Не удалось загрузить источник данных', {
+          status: response.status,
+          source: resolvedSource,
+        });
         throw new Error(`Не удалось загрузить данные CSV: ${source}`);
       }
       const text = await response.text();
@@ -823,8 +841,10 @@ const loadPrograms = async () => {
     }
   }
 
+  updateLoadWarning(errors.length && aggregated.size > 0 ? errors.length : 0);
+
   if (aggregated.size === 0) {
-    throw errors[0] || new Error('Не удалось загрузить данные CSV');
+    throw new Error('Не удалось загрузить данные. Проверьте подключение и попробуйте позже.');
   }
 
   return Array.from(aggregated.values());
