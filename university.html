@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Вуз — каталог образовательных программ</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <a class="skip-link" href="#programs">Перейти к списку программ</a>
+
+  <header class="page-header">
+    <div class="container">
+      <a class="back-link" href="index.html">← К каталогу</a>
+      <h1 class="page-title" id="universityName">Загрузка...</h1>
+      <p class="page-subtitle" id="universitySubtitle">
+        Подборка образовательных программ выбранного вуза. Все данные берутся из CSV-каталога.
+      </p>
+    </div>
+  </header>
+
+  <main class="container" id="programs">
+    <section class="summary-bar" aria-live="polite">
+      <div>Программ найдено: <strong id="programCount">0</strong></div>
+      <a class="pdf-button" id="pdfLink" href="#" target="_blank" rel="noopener noreferrer" hidden>
+        Официальный список (PDF)
+      </a>
+    </section>
+
+    <section class="grid" id="programGrid" aria-live="polite"></section>
+
+    <section class="empty-state" id="emptyState" hidden>
+      <h2>Программы не найдены</h2>
+      <p>Проверьте ссылку или вернитесь к каталогу, чтобы выбрать другой вуз.</p>
+      <a class="reset-button" href="index.html">Вернуться в каталог</a>
+    </section>
+  </main>
+
+  <script src="js/university.js"></script>
+</body>
+</html>
