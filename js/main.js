@@ -1,5 +1,7 @@
-const DATA_URL = 'data/programs.csv';
+const DATA_SOURCES = ['data/programs.csv', 'Ресоциализация СВО - Итог.csv'];
 const DIAGNOSTICS_ENABLED = false;
+
+let programs = [];
 
 const searchInput = document.getElementById('searchInput');
 const formatSelect = document.getElementById('formatSelect');
@@ -350,6 +352,23 @@ const normalizeKey = (value) =>
     .replace(/[^a-z0-9а-я]+/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+
+const detectDelimiter = (text) => {
+  const headerLine = text.split(/\r?\n/)[0] || '';
+  const semicolons = (headerLine.match(/;/g) || []).length;
+  const commas = (headerLine.match(/,/g) || []).length;
+  return commas > semicolons ? ',' : ';';
+};
+
+const parseCsvWithDetection = (text) => {
+  const primary = detectDelimiter(text);
+  const parsed = parseCSV(text, primary);
+  if (parsed.rows.length === 0 && parsed.headers.length <= 1) {
+    const fallback = primary === ';' ? ',' : ';';
+    return parseCSV(text, fallback);
+  }
+  return parsed;
+};
 
 // Надежный CSV-парсер под ';' с поддержкой кавычек и переносов.
 const parseCSV = (text, delimiter = ';') => {
@@ -755,17 +774,45 @@ const buildProgram = (raw, baseEducationKey) => {
   };
 };
 
+const loadPrograms = async () => {
+  const aggregated = new Map();
+  const errors = [];
+
+  for (const source of DATA_SOURCES) {
+    const encodedSource = encodeURI(source);
+    try {
+      const response = await fetch(encodedSource, { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error(`Не удалось загрузить данные CSV: ${source}`);
+      }
+      const text = await response.text();
+      const { headers, rows } = parseCsvWithDetection(text);
+      const baseEducationKey = findHeader(headers, BASE_EDUCATION_HEADERS);
+
+      rows.forEach((raw) => {
+        const program = buildProgram(raw, baseEducationKey);
+        const key =
+          program.id ||
+          `${normalizeKey(program.institutionName)}|${normalizeKey(program.programName)}|${program.fgosCode}`;
+        if (!aggregated.has(key)) {
+          aggregated.set(key, program);
+        }
+      });
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+
+  if (aggregated.size === 0) {
+    throw errors[0] || new Error('Не удалось загрузить данные CSV');
+  }
+
+  return Array.from(aggregated.values());
+};
+
 const init = async () => {
   try {
-    const response = await fetch(DATA_URL, { cache: 'no-store' });
-    if (!response.ok) {
-      throw new Error('Не удалось загрузить данные CSV');
-    }
-    const text = await response.text();
-    const { headers, rows } = parseCSV(text);
-    const baseEducationKey = findHeader(headers, BASE_EDUCATION_HEADERS);
-
-    programs = rows.map((program) => buildProgram(program, baseEducationKey));
+    programs = await loadPrograms();
 
     populateFormats();
     populateBaseEducation();
