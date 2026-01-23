@@ -3,44 +3,114 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Игра для одной команды</title>
+  <title>Ресоциализация — каталог образовательных программ</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <a class="skip-link" href="#game">Перейти к игре</a>
+  <a class="skip-link" href="#catalog">Перейти к каталогу</a>
   <header class="hero">
     <div class="container">
-      <p class="eyebrow">Упрощённая версия</p>
-      <h1>Игра для одной команды</h1>
+      <div class="hero-top">
+        <p class="eyebrow">Проект «Ресоциализация»</p>
+        <a
+          class="rgsu-logo"
+          href="https://rgsu.net/"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Открыть сайт РГСУ"
+        >
+          <img
+            src="https://upload.wikimedia.org/wikipedia/ru/archive/4/42/20240520114700%21%D0%A0%D0%93%D0%A1%D0%A3_%D0%BB%D0%BE%D0%B3%D0%BE%D1%82%D0%B8%D0%BF.png"
+            alt="Логотип РГСУ"
+            loading="lazy"
+          />
+        </a>
+      </div>
+      <h1>Каталог образовательных программ</h1>
       <p class="lead">
-        Никаких лишних экранов: одна команда, один счёт и быстрые кнопки для управления игрой.
+        Единое пространство для поиска образовательных программ, доступных участникам проекта.
+        Каталог обновляется на основе официальных данных и поддерживает быстрый поиск.
       </p>
     </div>
   </header>
 
-  <main class="container" id="game">
-    <section class="game-card" aria-label="Счёт команды">
-      <div class="game-header">
+  <main class="container" id="catalog">
+    <section class="controls" aria-label="Поиск и фильтры">
+      <div class="controls-header">
         <div>
-          <h2 class="game-title">Команда</h2>
-          <p class="game-subtitle">Единственная команда в игре</p>
+          <h2>Поиск программы</h2>
+          <p>Уточните запрос и фильтры, чтобы быстро найти подходящее направление.</p>
         </div>
-        <button class="reset-button" type="button" id="resetScore">Сбросить счёт</button>
+        <div class="stats" aria-live="polite">
+          <div class="active-filters" id="activeFilters" aria-label="Активные фильтры"></div>
+        </div>
       </div>
-      <div class="score">
-        <span class="score-label">Счёт</span>
-        <span class="score-value" id="scoreValue" aria-live="polite">0</span>
+      <div class="controls-grid">
+        <label class="field search-field">
+          <span>Поиск по названию, вузу или коду ФГОС</span>
+          <div class="input-wrapper">
+            <input
+              id="searchInput"
+              type="search"
+              placeholder="Например, Информатика, 09.03.01 или Баумана"
+              autocomplete="off"
+            />
+            <button class="clear-button" type="button" id="clearSearch" aria-label="Очистить поиск">
+              ✕
+            </button>
+          </div>
+          <small class="helper">Совет: можно вводить несколько слов через пробел.</small>
+        </label>
+        <label class="field">
+          <span>Формат обучения</span>
+          <select id="formatSelect">
+            <option value="">Все форматы</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Базовый уровень образования</span>
+          <select id="baseEducationSelect">
+            <option value="">Все уровни</option>
+          </select>
+          <small class="helper" id="baseEducationHint"></small>
+        </label>
+        <label class="field">
+          <span>Направление</span>
+          <select id="directionSelect">
+            <option value="">Все направления</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Федеральный округ</span>
+          <select id="districtSelect">
+            <option value="">Все округа</option>
+          </select>
+        </label>
+        <label class="field checkbox-field">
+          <span>Дополнительно</span>
+          <span class="checkbox-control">
+            <input id="budgetToggle" type="checkbox" />
+            Только с бюджетными местами
+          </span>
+        </label>
+        <div class="actions">
+          <button class="reset-button" type="button" id="resetFilters">Сбросить фильтры</button>
+        </div>
       </div>
-      <div class="game-actions">
-        <button class="primary-button" type="button" id="increaseScore">+1</button>
-        <button class="secondary-button" type="button" id="decreaseScore">-1</button>
-      </div>
+    </section>
+
+    <section class="grid" id="programGrid" aria-live="polite"></section>
+
+    <section class="empty-state" id="emptyState" hidden>
+      <h2>Программы не найдены</h2>
+      <p>Попробуйте изменить запрос или сбросить фильтры, чтобы увидеть все программы.</p>
+      <button class="reset-button" type="button" id="resetFiltersEmpty">Сбросить фильтры</button>
     </section>
   </main>
 
   <footer class="footer">
     <div class="container">
-      <p>Управляйте счётом одной команды, чтобы игра оставалась максимально простой.</p>
+      <p>Данные предоставлены для информационного использования. Проверяйте актуальность на сайте образовательной организации.</p>
     </div>
   </footer>
 
