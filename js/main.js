@@ -14,7 +14,6 @@ const resetFiltersButton = document.getElementById('resetFilters');
 const resetFiltersEmptyButton = document.getElementById('resetFiltersEmpty');
 const clearSearchButton = document.getElementById('clearSearch');
 const grid = document.getElementById('programGrid');
-const totalVisible = document.getElementById('totalVisible');
 const activeFilters = document.getElementById('activeFilters');
 const emptyState = document.getElementById('emptyState');
 
@@ -593,7 +592,6 @@ const createCard = (program) => {
 const renderPrograms = (items) => {
   grid.innerHTML = '';
   items.forEach((program) => grid.append(createCard(program)));
-  totalVisible.textContent = items.length;
   emptyState.hidden = items.length > 0;
 };
 
