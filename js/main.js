@@ -800,9 +800,9 @@ const loadPrograms = async () => {
   const errors = [];
 
   for (const source of DATA_SOURCES) {
-    const encodedSource = encodeURI(source);
+    const resolvedSource = new URL(source, window.location.href).toString();
     try {
-      const response = await fetch(encodedSource, { cache: 'no-store' });
+      const response = await fetch(resolvedSource, { cache: 'no-store' });
       if (!response.ok) {
         throw new Error(`Не удалось загрузить данные CSV: ${source}`);
       }
