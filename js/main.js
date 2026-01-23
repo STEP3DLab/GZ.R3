@@ -1,4 +1,4 @@
-const DATA_SOURCES = ['data/programs.csv', 'Ресоциализация СВО - Итог.csv'];
+const DATA_SOURCES = ['data/programs_master.csv'];
 const DIAGNOSTICS_ENABLED = false;
 
 let programs = [];
