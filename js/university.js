@@ -1,31 +1,11 @@
 const DATA_URL = 'data/programs.csv';
-const DIAGNOSTICS_ENABLED = false;
 
-const searchInput = document.getElementById('searchInput');
-const formatSelect = document.getElementById('formatSelect');
-const baseEducationSelect = document.getElementById('baseEducationSelect');
-const baseEducationHint = document.getElementById('baseEducationHint');
-const directionSelect = document.getElementById('directionSelect');
-const districtSelect = document.getElementById('districtSelect');
-const budgetToggle = document.getElementById('budgetToggle');
-const resetFiltersButton = document.getElementById('resetFilters');
-const resetFiltersEmptyButton = document.getElementById('resetFiltersEmpty');
-const clearSearchButton = document.getElementById('clearSearch');
-const grid = document.getElementById('programGrid');
-const totalLoaded = document.getElementById('totalLoaded');
-const totalVisible = document.getElementById('totalVisible');
-const activeFilters = document.getElementById('activeFilters');
+const programGrid = document.getElementById('programGrid');
+const programCount = document.getElementById('programCount');
+const universityName = document.getElementById('universityName');
+const universitySubtitle = document.getElementById('universitySubtitle');
+const pdfLink = document.getElementById('pdfLink');
 const emptyState = document.getElementById('emptyState');
-
-const CANONICAL_DIRECTIONS = [
-  'Агро, ветеринария и пищевые технологии',
-  'Здравоохранение и биотехнологии',
-  'Машиностроение и производственные технологии',
-  'Нефтегазовая промышленность и недропользование',
-  'Образование и гуманитарные направления',
-  'Право, управление и коммуникации',
-  'Строительство, архитектура и геоданные',
-];
 
 const BASE_EDUCATION_HEADERS = [
   'base_education_level',
@@ -37,6 +17,8 @@ const BASE_EDUCATION_HEADERS = [
   'базовый уровень образования',
   'базовый уровень',
 ];
+
+const DESCRIPTION_HEADERS = ['description', 'program_description', 'описание', 'описание программы'];
 
 const DIRECTION_EXACT_MAP = new Map([
   ['агро и пищевые технологии', 'Агро, ветеринария и пищевые технологии'],
@@ -324,9 +306,6 @@ const FEDERAL_DISTRICTS = [
   },
 ];
 
-const normalizeText = (value) => (value || '').toString().toLowerCase();
-
-// Нормализация текстовых значений для вывода и маппингов.
 const sanitizeText = (value) => {
   if (value === null || value === undefined) {
     return '';
@@ -443,64 +422,7 @@ const districtFromRegion = (region) => {
 
 const getDisplayValue = (value, fallback = 'Не указано') => (value ? value : fallback);
 
-const buildSearchIndex = (program) => {
-  const parts = [
-    program.programName,
-    program.institutionName,
-    program.fgosCode,
-    program.direction,
-    program.federalDistrict,
-    program.region,
-  ];
-  const base = normalizeForSearch(parts.join(' '));
-  const initials = [
-    buildInitials(program.institutionName),
-    buildInitials(program.programName),
-  ]
-    .filter(Boolean)
-    .join(' ');
-  return `${base} ${initials}`.trim();
-};
-
-const normalizeForSearch = (value) =>
-  normalizeText(value)
-    .replace(/ё/g, 'е')
-    .replace(/[^a-z0-9а-я]+/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-const buildInitials = (value) => {
-  const words = (value || '').toString().match(/[A-Za-zА-Яа-яЁё]+/g) || [];
-  const initials = words
-    .filter((word) => word.length > 2)
-    .map((word) => word[0])
-    .join('');
-  return normalizeForSearch(initials);
-};
-
-const logDiagnostics = (items, context) => {
-  if (!DIAGNOSTICS_ENABLED) {
-    return;
-  }
-
-  const directionCounts = items.reduce((acc, program) => {
-    const key = program.direction || 'Другое';
-    acc[key] = (acc[key] || 0) + 1;
-    return acc;
-  }, {});
-
-  const universities = Array.from(
-    new Set(items.map((program) => program.institutionName).filter(Boolean))
-  ).sort();
-
-  console.group('Диагностика фильтров');
-  console.log('Контекст:', context);
-  console.table(directionCounts);
-  console.log('Университеты:', universities);
-  console.groupEnd();
-};
-
-const createCard = (program) => {
+const createCard = (program, showDescription) => {
   const card = document.createElement('article');
   card.className = 'card';
 
@@ -512,7 +434,7 @@ const createCard = (program) => {
   formatBadge.textContent = getDisplayValue(program.format, 'Формат не указан');
   badges.append(formatBadge);
 
-  if (normalizeText(program.budgetSeat) === 'да') {
+  if (program.budgetSeat.toLowerCase() === 'да') {
     const budgetBadge = document.createElement('span');
     budgetBadge.className = 'badge accent';
     budgetBadge.textContent = 'Есть бюджет';
@@ -523,15 +445,7 @@ const createCard = (program) => {
   title.textContent = getDisplayValue(program.programName, 'Без названия');
 
   const institution = document.createElement('p');
-  if (program.institutionName) {
-    const link = document.createElement('a');
-    link.className = 'institution-link';
-    link.href = `university.html?name=${encodeURIComponent(program.institutionName)}`;
-    link.textContent = program.institutionName;
-    institution.append(link);
-  } else {
-    institution.textContent = 'Организация не указана';
-  }
+  institution.textContent = getDisplayValue(program.institutionName, 'Организация не указана');
 
   const meta = document.createElement('div');
   meta.className = 'meta';
@@ -545,6 +459,10 @@ const createCard = (program) => {
     ['Город/регион', getDisplayValue(program.region, 'Не указано')],
     ['Бюджетные места', getDisplayValue(program.budgetSeat, 'Не указано')],
   ];
+
+  if (showDescription) {
+    metaItems.push(['Описание', getDisplayValue(program.description, 'Не указано')]);
+  }
 
   metaItems.forEach(([label, value]) => {
     const line = document.createElement('p');
@@ -567,247 +485,79 @@ const createCard = (program) => {
   return card;
 };
 
-const renderPrograms = (items) => {
-  grid.innerHTML = '';
-  items.forEach((program) => grid.append(createCard(program)));
-  totalVisible.textContent = items.length;
+const renderPrograms = (items, showDescription) => {
+  programGrid.innerHTML = '';
+  items.forEach((program) => programGrid.append(createCard(program, showDescription)));
+  programCount.textContent = items.length;
   emptyState.hidden = items.length > 0;
 };
 
-const updateResetButtonState = () => {
-  const hasFilters =
-    searchInput.value.trim() !== '' ||
-    formatSelect.value !== '' ||
-    baseEducationSelect.value !== '' ||
-    directionSelect.value !== '' ||
-    districtSelect.value !== '' ||
-    budgetToggle.checked;
-  resetFiltersButton.disabled = !hasFilters;
-};
-
-const toggleClearButton = () => {
-  const shouldShow = searchInput.value.trim() !== '';
-  clearSearchButton.classList.toggle('is-visible', shouldShow);
-};
-
-const updateActiveFilters = () => {
-  const filters = [];
-
-  if (searchInput.value.trim()) {
-    filters.push(`Запрос: ${searchInput.value.trim()}`);
-  }
-  if (formatSelect.value) {
-    filters.push(`Формат: ${formatSelect.value}`);
-  }
-  if (baseEducationSelect.value) {
-    filters.push(`Базовый уровень: ${baseEducationSelect.value}`);
-  }
-  if (directionSelect.value) {
-    filters.push(`Направление: ${directionSelect.value}`);
-  }
-  if (districtSelect.value) {
-    filters.push(`Округ: ${districtSelect.value}`);
-  }
-  if (budgetToggle.checked) {
-    filters.push('Только бюджетные места');
-  }
-
-  activeFilters.innerHTML = '';
-  if (filters.length === 0) {
-    const chip = document.createElement('span');
-    chip.className = 'filter-chip';
-    chip.textContent = 'Фильтры не заданы';
-    activeFilters.append(chip);
-    return;
-  }
-
-  filters.forEach((label) => {
-    const chip = document.createElement('span');
-    chip.className = 'filter-chip';
-    chip.textContent = label;
-    activeFilters.append(chip);
-  });
-};
-
-// Фильтры не должны удалять строки: неизвестные значения остаются в выдаче.
-const applyFilters = () => {
-  const query = normalizeForSearch(searchInput.value.trim());
-  const format = formatSelect.value;
-  const baseEducation = baseEducationSelect.value;
-  const direction = directionSelect.value;
-  const district = districtSelect.value;
-  const budgetOnly = budgetToggle.checked;
-
-  const filtered = programs.filter((program) => {
-    const haystack = program.searchIndex || '';
-    const queryTokens = query.split(/\s+/).filter(Boolean);
-    const matchesQuery = queryTokens.every((token) => haystack.includes(token));
-    const matchesFormat = !format || program.format === format;
-    const matchesBaseEducation = !baseEducation || program.baseEducation === baseEducation;
-    const matchesDirection = !direction || program.direction === direction;
-    const matchesDistrict = !district || program.federalDistrict === district;
-    const matchesBudget = !budgetOnly || normalizeText(program.budgetSeat) === 'да';
-    return (
-      matchesQuery &&
-      matchesFormat &&
-      matchesBaseEducation &&
-      matchesDirection &&
-      matchesDistrict &&
-      matchesBudget
-    );
-  });
-
-  renderPrograms(filtered);
-  updateResetButtonState();
-  updateActiveFilters();
-  toggleClearButton();
-  logDiagnostics(filtered, {
-    format,
-    baseEducation,
-    direction,
-    district,
-    budgetOnly,
-    query,
-  });
-};
-
-const populateSelect = (select, values) => {
-  values.forEach((value) => {
-    const option = document.createElement('option');
-    option.value = value;
-    option.textContent = value;
-    select.append(option);
-  });
-};
-
-const populateFormats = () => {
-  const formats = Array.from(new Set(programs.map((program) => program.format).filter(Boolean))).sort();
-  populateSelect(formatSelect, formats);
-};
-
-const populateBaseEducation = () => {
-  if (!baseEducationSelect) {
-    return;
-  }
-
-  const values = Array.from(
-    new Set(programs.map((program) => program.baseEducation).filter(Boolean))
-  ).sort();
-
-  if (values.length === 0) {
-    baseEducationSelect.disabled = true;
-    baseEducationHint.textContent = 'Нет данных в CSV';
-    return;
-  }
-
-  baseEducationSelect.disabled = false;
-  baseEducationHint.textContent = '';
-  populateSelect(baseEducationSelect, values);
-};
-
-const populateDirections = () => {
-  const directions = Array.from(
-    new Set(programs.map((program) => program.direction).filter(Boolean))
-  ).sort((a, b) => {
-    const aIndex = CANONICAL_DIRECTIONS.indexOf(a);
-    const bIndex = CANONICAL_DIRECTIONS.indexOf(b);
-    if (aIndex === -1 && bIndex === -1) {
-      return a.localeCompare(b, 'ru');
-    }
-    if (aIndex === -1) {
-      return 1;
-    }
-    if (bIndex === -1) {
-      return -1;
-    }
-    return aIndex - bIndex;
-  });
-
-  populateSelect(directionSelect, directions);
-};
-
-const populateDistricts = () => {
-  const districts = Array.from(
-    new Set(programs.map((program) => program.federalDistrict).filter(Boolean))
-  ).sort();
-  populateSelect(districtSelect, districts);
-};
-
-const buildProgram = (raw, baseEducationKey) => {
-  const program = {
-    id: raw.id,
-    directionRaw: sanitizeText(raw.macrogroup_name),
-    direction: directionFromValue(raw.macrogroup_name),
-    format: sanitizeText(raw.education_level),
-    baseEducation: baseEducationKey ? sanitizeText(raw[baseEducationKey]) : '',
-    fgosCode: sanitizeText(raw.fgos_code),
-    institutionName: sanitizeText(raw.institution_name),
-    programName: sanitizeText(raw.program_name),
-    region: sanitizeText(raw.region),
-    federalDistrict: districtFromRegion(raw.region),
-    budgetSeat: sanitizeText(raw.budget_seat),
-    url: sanitizeText(raw.URL),
-  };
-
-  return {
-    ...program,
-    searchIndex: buildSearchIndex(program),
-  };
-};
-
 const init = async () => {
+  const params = new URLSearchParams(window.location.search);
+  const requestedName = sanitizeText(params.get('name'));
+  const requestedKey = normalizeKey(requestedName);
+
+  if (!requestedName) {
+    universityName.textContent = 'Вуз не выбран';
+    universitySubtitle.textContent = 'Укажите название вуза через параметр name в адресной строке.';
+    emptyState.hidden = false;
+    return;
+  }
+
   try {
     const response = await fetch(DATA_URL, { cache: 'no-store' });
     if (!response.ok) {
       throw new Error('Не удалось загрузить данные CSV');
     }
+
     const text = await response.text();
     const { headers, rows } = parseCSV(text);
     const baseEducationKey = findHeader(headers, BASE_EDUCATION_HEADERS);
+    const descriptionKey = findHeader(headers, DESCRIPTION_HEADERS);
 
-    programs = rows.map((program) => buildProgram(program, baseEducationKey));
+    const programs = rows.map((raw) => ({
+      id: raw.id,
+      direction: directionFromValue(raw.macrogroup_name),
+      format: sanitizeText(raw.education_level),
+      baseEducation: baseEducationKey ? sanitizeText(raw[baseEducationKey]) : '',
+      fgosCode: sanitizeText(raw.fgos_code),
+      institutionName: sanitizeText(raw.institution_name),
+      programName: sanitizeText(raw.program_name),
+      region: sanitizeText(raw.region),
+      federalDistrict: districtFromRegion(raw.region),
+      budgetSeat: sanitizeText(raw.budget_seat),
+      url: sanitizeText(raw.URL),
+      description: descriptionKey ? sanitizeText(raw[descriptionKey]) : '',
+    }));
 
-    populateFormats();
-    populateBaseEducation();
-    populateDirections();
-    populateDistricts();
+    const universityPrograms = programs.filter(
+      (program) => normalizeKey(program.institutionName) === requestedKey
+    );
 
-    totalLoaded.textContent = programs.length;
-    renderPrograms(programs);
-    updateResetButtonState();
-    updateActiveFilters();
-    toggleClearButton();
+    const displayName = universityPrograms[0]?.institutionName || requestedName;
+    universityName.textContent = displayName;
+
+    const pdfProgram = universityPrograms.find((program) =>
+      program.url.toLowerCase().endsWith('.pdf')
+    );
+
+    if (pdfProgram) {
+      pdfLink.href = pdfProgram.url;
+      pdfLink.hidden = false;
+    } else {
+      pdfLink.hidden = true;
+    }
+
+    renderPrograms(universityPrograms, Boolean(descriptionKey));
+
+    if (universityPrograms.length === 0) {
+      emptyState.hidden = false;
+    }
   } catch (error) {
-    grid.innerHTML = '';
     emptyState.hidden = false;
     emptyState.querySelector('h2').textContent = 'Ошибка загрузки данных';
     emptyState.querySelector('p').textContent = error.message;
   }
 };
-
-const resetFilters = () => {
-  searchInput.value = '';
-  formatSelect.value = '';
-  baseEducationSelect.value = '';
-  directionSelect.value = '';
-  districtSelect.value = '';
-  budgetToggle.checked = false;
-  applyFilters();
-  searchInput.focus();
-};
-
-resetFiltersButton.addEventListener('click', resetFilters);
-resetFiltersEmptyButton.addEventListener('click', resetFilters);
-searchInput.addEventListener('input', applyFilters);
-formatSelect.addEventListener('change', applyFilters);
-baseEducationSelect.addEventListener('change', applyFilters);
-directionSelect.addEventListener('change', applyFilters);
-districtSelect.addEventListener('change', applyFilters);
-budgetToggle.addEventListener('change', applyFilters);
-clearSearchButton.addEventListener('click', () => {
-  searchInput.value = '';
-  applyFilters();
-  searchInput.focus();
-});
 
 init();

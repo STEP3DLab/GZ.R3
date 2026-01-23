@@ -345,6 +345,18 @@ body {
   color: var(--primary);
 }
 
+.card .institution-link {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.card .institution-link:hover,
+.card .institution-link:focus {
+  text-decoration: underline;
+  outline: none;
+}
+
 .card p {
   margin: 0;
   color: var(--muted);
@@ -385,6 +397,72 @@ body {
   text-align: center;
   border: 1px solid var(--border);
   margin-bottom: 48px;
+  display: grid;
+  gap: 16px;
+  justify-items: center;
+}
+
+.page-header {
+  padding: 40px 0 24px;
+}
+
+.back-link {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.back-link:hover,
+.back-link:focus {
+  text-decoration: underline;
+  outline: none;
+}
+
+.page-title {
+  margin: 16px 0 8px;
+  font-size: clamp(2rem, 3vw, 2.5rem);
+  color: var(--primary);
+}
+
+.page-subtitle {
+  margin: 0;
+  color: var(--muted);
+  max-width: 720px;
+}
+
+.summary-bar {
+  margin: 24px 0;
+  padding: 16px 20px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: var(--shadow);
+}
+
+.pdf-button {
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+  background: transparent;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.pdf-button:hover,
+.pdf-button:focus {
+  background: var(--primary);
+  color: #fff;
+  outline: none;
 }
 
 .footer {

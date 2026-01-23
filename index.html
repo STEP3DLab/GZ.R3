@@ -43,7 +43,7 @@
         </div>
         <div class="stats" aria-live="polite">
           <div>
-            Показано программ: <span id="resultsCount">0</span> из <span id="totalCount">0</span>
+            Загружено программ: <span id="totalLoaded">0</span> | Отображается: <span id="totalVisible">0</span>
           </div>
           <div class="active-filters" id="activeFilters" aria-label="Активные фильтры"></div>
         </div>
@@ -71,15 +71,22 @@
           </select>
         </label>
         <label class="field">
+          <span>Базовый уровень образования</span>
+          <select id="baseEducationSelect">
+            <option value="">Все уровни</option>
+          </select>
+          <small class="helper" id="baseEducationHint"></small>
+        </label>
+        <label class="field">
           <span>Направление</span>
           <select id="directionSelect">
             <option value="">Все направления</option>
           </select>
         </label>
         <label class="field">
-          <span>Регион</span>
-          <select id="regionSelect">
-            <option value="">Все регионы</option>
+          <span>Федеральный округ</span>
+          <select id="districtSelect">
+            <option value="">Все округа</option>
           </select>
         </label>
         <label class="field checkbox-field">
@@ -99,7 +106,8 @@
 
     <section class="empty-state" id="emptyState" hidden>
       <h2>Программы не найдены</h2>
-      <p>Попробуйте изменить запрос или сбросить фильтр формата обучения.</p>
+      <p>Попробуйте изменить запрос или сбросить фильтры, чтобы увидеть все программы.</p>
+      <button class="reset-button" type="button" id="resetFiltersEmpty">Сбросить фильтры</button>
     </section>
   </main>
 
