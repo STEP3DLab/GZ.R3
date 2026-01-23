@@ -1,4 +1,4 @@
-const DATA_URL = 'data/programs.csv';
+const DATA_SOURCES = ['data/programs.csv', 'Ресоциализация СВО - Итог.csv'];
 
 const programGrid = document.getElementById('programGrid');
 const programCount = document.getElementById('programCount');
@@ -330,6 +330,23 @@ const normalizeKey = (value) =>
     .replace(/\s+/g, ' ')
     .trim();
 
+const detectDelimiter = (text) => {
+  const headerLine = text.split(/\r?\n/)[0] || '';
+  const semicolons = (headerLine.match(/;/g) || []).length;
+  const commas = (headerLine.match(/,/g) || []).length;
+  return commas > semicolons ? ',' : ';';
+};
+
+const parseCsvWithDetection = (text) => {
+  const primary = detectDelimiter(text);
+  const parsed = parseCSV(text, primary);
+  if (parsed.rows.length === 0 && parsed.headers.length <= 1) {
+    const fallback = primary === ';' ? ',' : ';';
+    return parseCSV(text, fallback);
+  }
+  return parsed;
+};
+
 // Надежный CSV-парсер под ';' с поддержкой кавычек и переносов.
 const parseCSV = (text, delimiter = ';') => {
   const rows = [];
@@ -492,6 +509,62 @@ const renderPrograms = (items, showDescription) => {
   emptyState.hidden = items.length > 0;
 };
 
+const loadPrograms = async () => {
+  const aggregated = new Map();
+  const errors = [];
+  let hasDescription = false;
+
+  for (const source of DATA_SOURCES) {
+    const encodedSource = encodeURI(source);
+    try {
+      const response = await fetch(encodedSource, { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error(`Не удалось загрузить данные CSV: ${source}`);
+      }
+
+      const text = await response.text();
+      const { headers, rows } = parseCsvWithDetection(text);
+      const baseEducationKey = findHeader(headers, BASE_EDUCATION_HEADERS);
+      const descriptionKey = findHeader(headers, DESCRIPTION_HEADERS);
+      if (descriptionKey) {
+        hasDescription = true;
+      }
+
+      rows.forEach((raw) => {
+        const program = {
+          id: raw.id,
+          direction: directionFromValue(raw.macrogroup_name),
+          format: sanitizeText(raw.education_level),
+          baseEducation: baseEducationKey ? sanitizeText(raw[baseEducationKey]) : '',
+          fgosCode: sanitizeText(raw.fgos_code),
+          institutionName: sanitizeText(raw.institution_name),
+          programName: sanitizeText(raw.program_name),
+          region: sanitizeText(raw.region),
+          federalDistrict: districtFromRegion(raw.region),
+          budgetSeat: sanitizeText(raw.budget_seat),
+          url: sanitizeText(raw.URL),
+          description: descriptionKey ? sanitizeText(raw[descriptionKey]) : '',
+        };
+
+        const key =
+          program.id ||
+          `${normalizeKey(program.institutionName)}|${normalizeKey(program.programName)}|${program.fgosCode}`;
+        if (!aggregated.has(key)) {
+          aggregated.set(key, program);
+        }
+      });
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+
+  if (aggregated.size === 0) {
+    throw errors[0] || new Error('Не удалось загрузить данные CSV');
+  }
+
+  return { programs: Array.from(aggregated.values()), hasDescription };
+};
+
 const init = async () => {
   const params = new URLSearchParams(window.location.search);
   const requestedName = sanitizeText(params.get('name'));
@@ -505,30 +578,7 @@ const init = async () => {
   }
 
   try {
-    const response = await fetch(DATA_URL, { cache: 'no-store' });
-    if (!response.ok) {
-      throw new Error('Не удалось загрузить данные CSV');
-    }
-
-    const text = await response.text();
-    const { headers, rows } = parseCSV(text);
-    const baseEducationKey = findHeader(headers, BASE_EDUCATION_HEADERS);
-    const descriptionKey = findHeader(headers, DESCRIPTION_HEADERS);
-
-    const programs = rows.map((raw) => ({
-      id: raw.id,
-      direction: directionFromValue(raw.macrogroup_name),
-      format: sanitizeText(raw.education_level),
-      baseEducation: baseEducationKey ? sanitizeText(raw[baseEducationKey]) : '',
-      fgosCode: sanitizeText(raw.fgos_code),
-      institutionName: sanitizeText(raw.institution_name),
-      programName: sanitizeText(raw.program_name),
-      region: sanitizeText(raw.region),
-      federalDistrict: districtFromRegion(raw.region),
-      budgetSeat: sanitizeText(raw.budget_seat),
-      url: sanitizeText(raw.URL),
-      description: descriptionKey ? sanitizeText(raw[descriptionKey]) : '',
-    }));
+    const { programs, hasDescription } = await loadPrograms();
 
     const universityPrograms = programs.filter(
       (program) => normalizeKey(program.institutionName) === requestedKey
@@ -548,7 +598,7 @@ const init = async () => {
       pdfLink.hidden = true;
     }
 
-    renderPrograms(universityPrograms, Boolean(descriptionKey));
+    renderPrograms(universityPrograms, hasDescription);
 
     if (universityPrograms.length === 0) {
       emptyState.hidden = false;
